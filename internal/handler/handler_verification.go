@@ -6,18 +6,22 @@ import (
 
 	"github.com/errom502/client-service/internal/dto"
 	"github.com/errom502/client-service/internal/usecase"
-
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type VerificationHandler struct {
-	uc *usecase.VerificationUsecase
+	uc     *usecase.VerificationUsecase
+	logger *zap.Logger
 }
 
-func NewVerificationHandler(uc *usecase.VerificationUsecase) *VerificationHandler {
-	return &VerificationHandler{uc: uc}
+func NewVerificationHandler(uc *usecase.VerificationUsecase, l *zap.Logger) *VerificationHandler {
+	return &VerificationHandler{
+		uc:     uc,
+		logger: l,
+	}
 }
 
 // CheckStatus GET /api/v1/verification/status?email=xxx
@@ -30,6 +34,7 @@ func (h *VerificationHandler) CheckStatus(c *gin.Context) {
 
 	resp, err := h.uc.CheckStatus(c.Request.Context(), email)
 	if err != nil {
+		h.logger.Error("VerificationHandler.CheckStatus: internal error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -47,7 +52,7 @@ func (h *VerificationHandler) Create(c *gin.Context) {
 
 	id, err := h.uc.Create(c.Request.Context(), req.ExtUserID, req.Email)
 	if err != nil {
-		code, msg := grpcErrToHTTP(err)
+		code, msg := h.grpcErrToHTTP(err)
 		c.JSON(code, gin.H{"error": msg})
 		return
 	}
@@ -70,7 +75,7 @@ func (h *VerificationHandler) Retry(c *gin.Context) {
 			})
 			return
 		}
-		code, msg := grpcErrToHTTP(err)
+		code, msg := h.grpcErrToHTTP(err)
 		c.JSON(code, gin.H{"error": msg})
 		return
 	}
@@ -79,9 +84,10 @@ func (h *VerificationHandler) Retry(c *gin.Context) {
 }
 
 // grpcErrToHTTP маппит gRPC ошибки в HTTP коды.
-func grpcErrToHTTP(err error) (int, string) {
+func (h *VerificationHandler) grpcErrToHTTP(err error) (int, string) {
 	st, ok := status.FromError(err)
 	if !ok {
+		h.logger.Error("VerificationHandler.CheckStatus: internal error can't get status")
 		return http.StatusInternalServerError, "internal error"
 	}
 	switch st.Code() {

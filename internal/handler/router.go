@@ -24,9 +24,9 @@ func NewRouter(vh *VerificationHandler, frontendDir string) *gin.Engine {
 	}
 
 	// Раздача React SPA — все неизвестные маршруты отдают index.html
-	r.Static("/assets", frontendDir+"/assets")
+	r.Static("/assets", "./dist/assets")
 	r.NoRoute(func(c *gin.Context) {
-		c.File(frontendDir + "/index.html")
+		c.File("./dist/index.html")
 	})
 	_ = http.MethodOptions // suppress unused import warning
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/errom502/client-service/internal/client"
 	"github.com/errom502/client-service/internal/dto"
+	"go.uber.org/zap"
 )
 
 var (
@@ -17,10 +18,14 @@ var (
 
 type VerificationUsecase struct {
 	client *client.VerificationClient
+	logger *zap.Logger
 }
 
-func NewVerificationUsecase(c *client.VerificationClient) *VerificationUsecase {
-	return &VerificationUsecase{client: c}
+func NewVerificationUsecase(c *client.VerificationClient, l *zap.Logger) *VerificationUsecase {
+	return &VerificationUsecase{
+		client: c,
+		logger: l,
+	}
 }
 
 // CheckStatus возвращает последнюю верификацию по email и сообщение для пользователя.
@@ -28,6 +33,7 @@ func NewVerificationUsecase(c *client.VerificationClient) *VerificationUsecase {
 func (u *VerificationUsecase) CheckStatus(ctx context.Context, email string) (*dto.StatusResponse, error) {
 	verifications, err := u.client.FilterByEmail(ctx, email)
 	if err != nil {
+		u.logger.Error("VerificationUsecase.CheckStatus: CheckStatus failed", zap.Error(err))
 		return nil, fmt.Errorf("VerificationUsecase.CheckStatus: %w", err)
 	}
 
@@ -67,6 +73,7 @@ func (u *VerificationUsecase) CheckStatus(ctx context.Context, email string) (*d
 func (u *VerificationUsecase) Create(ctx context.Context, extUserID, email string) (string, error) {
 	id, err := u.client.Create(ctx, extUserID, email)
 	if err != nil {
+		u.logger.Error("VerificationUsecase.Create: failed to create", zap.Error(err))
 		return "", fmt.Errorf("VerificationUsecase.Create: %w", err)
 	}
 	return id, nil
@@ -80,12 +87,14 @@ func (u *VerificationUsecase) Create(ctx context.Context, extUserID, email strin
 func (u *VerificationUsecase) RetryByEmail(ctx context.Context, email, extUserID string) error {
 	verifications, err := u.client.FilterByEmail(ctx, email)
 	if err != nil {
+		u.logger.Error("VerificationUsecase.RetryByEmail: failed to filter", zap.Error(err))
 		return fmt.Errorf("VerificationUsecase.RetryByEmail: filter: %w", err)
 	}
 
 	// Нет верификаций — создаём первую
 	if len(verifications) == 0 {
 		if _, err := u.client.Create(ctx, extUserID, email); err != nil {
+			u.logger.Error("VerificationUsecase.RetryByEmail: failed to create", zap.Error(err))
 			return fmt.Errorf("VerificationUsecase.RetryByEmail: create: %w", err)
 		}
 		return nil
@@ -101,6 +110,7 @@ func (u *VerificationUsecase) RetryByEmail(ctx context.Context, email, extUserID
 	case dto.VerificationStatusVerified:
 		// Уже верифицирована — создаём новую верификацию
 		if _, err := u.client.Create(ctx, extUserID, email); err != nil {
+			u.logger.Error("VerificationUsecase.RetryByEmail: failed to create after verified", zap.Error(err))
 			return fmt.Errorf("VerificationUsecase.RetryByEmail: create after verified: %w", err)
 		}
 		return nil
@@ -108,11 +118,13 @@ func (u *VerificationUsecase) RetryByEmail(ctx context.Context, email, extUserID
 	case dto.VerificationStatusExpired, dto.VerificationStatusFailed:
 		// Retry существующей верификации
 		if err := u.client.Retry(ctx, latest.ID); err != nil {
+			u.logger.Error("VerificationUsecase.RetryByEmail: failed to retry", zap.Error(err))
 			return fmt.Errorf("VerificationUsecase.RetryByEmail: retry: %w", err)
 		}
 		return nil
 
 	default:
+		u.logger.Error("VerificationUsecase.RetryByEmail: unknown status", zap.String("status", latest.StatusText))
 		return fmt.Errorf("VerificationUsecase.RetryByEmail: unknown status: %s", latest.StatusText)
 	}
 }

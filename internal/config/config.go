@@ -3,7 +3,11 @@ package config
 import "github.com/jessevdk/go-flags"
 
 type Config struct {
-	Env     string `long:"env" env:"ENV" default:"develop"`
+	// LogLevel уровень логирования
+	LogLevel string `long:"log-level" description:"Log level: panic, fatal, warn, info, debug" env:"LOG_LEVEL" default:"warn"`
+	Env      string `long:"env" env:"ENV" default:"develop"`
+	// DevMode режим отладки
+	DevMode bool `long:"dev-mode" env:"DEV_MODE" description:"Developer mode"`
 	HTTP    HTTP
 	Gateway Gateway
 }

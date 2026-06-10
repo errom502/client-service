@@ -20,8 +20,8 @@ RUN go mod download
 
 COPY . .
 
-# важно: сюда можно встроить фронт (dist)
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+# переносим только результат сборки фронта в фиксированное место
+COPY --from=frontend-builder /app/frontend/dist ./dist
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o client-service ./cmd
 
@@ -33,7 +33,8 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=backend-builder /app/client-service .
+COPY --from=backend-builder /app/client-service ./
+COPY --from=backend-builder /app/dist ./dist
 
 EXPOSE 8080
 
